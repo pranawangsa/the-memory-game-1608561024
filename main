@@ -1,0 +1,442 @@
+import random, pygame, sys, datetime
+from pygame.locals import *
+
+FPS = 30
+difficulty = 1 # 1=easy, 2=medium, 3=hard
+windowWidth = 640
+windowHeight = 480
+revealSpeed = 8
+boxSize = 45
+menuBoxSizeHorizontal = 140
+menuBoxSizeVertical = 100
+gapSize = 10
+menuGapSize = 30
+boardWidth = 10
+boardHeight = 6
+xMargin = int((windowWidth - (boardWidth * (boxSize + gapSize))) / 2)
+xMarginMenu = int((windowWidth - (boardWidth * (menuBoxSizeHorizontal + menuGapSize))) / 2)
+yMargin = int((windowHeight - (boardHeight * (boxSize + gapSize))) / 2)
+yMarginMenu = int((windowWidth - (boardWidth * (menuBoxSizeVertical + menuGapSize))) / 2)
+assert (boardWidth * boardHeight) % 2 == 0, 'Board needs to have an even number of boxes.'
+
+gray = (100, 100, 100)
+navyBlue = (60, 60, 100)
+white = (255, 255, 255)
+red = (255, 0, 0)
+green = (0, 255, 0)
+blue = (0, 0, 255)
+yellow = (255, 255, 0)
+orange = (255, 128, 0)
+purple = (255, 0, 255)
+cyan = (0, 255, 255)
+
+bgColor = navyBlue
+boxColor = white
+highlightColor = blue
+
+
+square = 'square'
+diamond = 'diamond'
+oval = 'oval'
+allShape = (square, diamond, oval)
+
+
+class MainMenu():
+    def menu(self):
+        pygame.init()
+        menuWindow = pygame.display.set_mode((windowWidth, windowHeight))
+        menuFont = pygame.font.Font('freesansbold.ttf', 16)
+        pygame.display.set_caption('Memory Game')
+        mouseX = 0
+        mouseY = 0
+        menuWindow.fill(bgColor)
+        MainMenu.drawMenuBox(self, menuWindow, menuFont)
+        menuContent = [['play', 'instructions'], ['high score', 'quit']]
+
+        while True:
+            mouseClicked = False
+            pygame.display.update()
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == MOUSEMOTION:
+                    mouseX, mouseY = event.pos
+                elif event.type == MOUSEBUTTONUP:
+                    mouseX, mouseY = event.pos
+                    mouseClicked = True
+                menuX, menuY = MainMenu.getMenuAtPixel(self, mouseX, mouseY)
+                if menuX != None and menuY != None:
+                    if mouseClicked:
+                        selectedMenu = MainMenu.getMenu(self, menuContent, menuX, menuY)
+                        if selectedMenu == menuContent[0][0]:  #play
+                            Game.main(Game)
+                        elif selectedMenu == menuContent[0][1]:  #instructions
+                            Instructions.instructionContent(Instructions)
+                        elif selectedMenu == menuContent[1][0]:  #high score
+                            HighScore.highScoreDisplay(HighScore)
+                        elif selectedMenu == menuContent[1][1]:  #exit
+                            pygame.quit()
+                            sys.exit()
+            pygame.display.update()
+
+    def drawMenuBox(self, menuWindow, menuFont):
+        for a in range(2):
+            for b in range(2):
+                pygame.draw.rect(menuWindow, gray, (160 + (170 * a), 200 + (130 * b), 140, 100))
+        titleSurf = menuFont.render('The Memory Game', True, white)
+        titleRect = titleSurf.get_rect()
+        titleRect.topleft = (240, 60)
+        menuWindow.blit(titleSurf, titleRect)
+
+        playSurf = menuFont.render('Play', True, white)
+        playRect = playSurf.get_rect()
+        playRect.topleft = (213, 245)
+        menuWindow.blit(playSurf, playRect)
+
+        tutorSurf = menuFont.render('Instructions', True, white)
+        tutorRect = tutorSurf.get_rect()
+        tutorRect.topleft = (183, 375)
+        menuWindow.blit(tutorSurf, tutorRect)
+
+        hScoreSurf = menuFont.render('High Score', True, white)
+        hScoreRect = hScoreSurf.get_rect()
+        hScoreRect.topleft = (358, 245)
+        menuWindow.blit(hScoreSurf, hScoreRect)
+
+        outSurf = menuFont.render('Exit', True, white)
+        outRect = hScoreSurf.get_rect()
+        outRect.topleft = (383, 375)
+        menuWindow.blit(outSurf, outRect)
+
+    def getMenuAtPixel(self, xCoord, yCoord):
+        for menuX in range(boardWidth):
+            for menuY in range(boardHeight):
+                leftCoord, topCoord = MainMenu.menuLeftTopCoord(self, menuX, menuY)
+                menuSelect = pygame.Rect(leftCoord, topCoord, menuBoxSizeHorizontal, menuBoxSizeVertical)
+                if menuSelect.collidepoint(xCoord, yCoord):
+                    return (menuX-4, menuY-4)
+        return (None, None)
+
+    def menuLeftTopCoord(self, menuX, menuY):
+        leftCoord = menuX * (menuBoxSizeHorizontal + menuGapSize) + xMarginMenu
+        topCoord = menuY * (menuBoxSizeVertical + menuGapSize) + yMarginMenu
+        return (leftCoord, topCoord)
+
+    def getMenu(self, board, menuX, menuY):
+        return board[menuX][menuY]
+
+class Instructions():
+    def instructionContent(self):
+        pygame.init()
+        instWindow = pygame.display.set_mode((windowWidth, windowHeight))
+        instFont = pygame.font.Font('freesansbold.ttf', 18)
+        pygame.display.set_caption('Memory Game')
+
+        instWindow.fill(bgColor)
+        text = ['How to play : ', '', '- Select one box, then you must find all matching shape to gain score',
+                '- Selecting a box that does not contain your first choice will deduct ', '  your score.',
+                '- All box will be revealed for a moment before they are covered back.',
+                '- Difficulty affects box reveal time and matching score.', '- Top 10 score will be recorded.'] #8 contents
+        for i in range(8):
+            instSurf = instFont.render(text[i], True, white)
+            instRect = instSurf.get_rect()
+            instRect.topleft = (10, 10 + (19 * i))
+            instWindow.blit(instSurf, instRect)
+        while True:
+            pygame.display.update()
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYUP and event.key == K_ESCAPE:
+                    MainMenu.menu(MainMenu)
+
+class HighScore():
+    def highScoreDisplay(self):
+        pygame.init()
+        hsWindow = pygame.display.set_mode((windowWidth, windowHeight))
+        hsFont = pygame.font.Font('freesansbold.ttf', 18)
+        pygame.display.set_caption('Memory Game')
+        hsFile = open("scoreRecord.txt", "a")
+        hsFile.close()
+        hsWindow.fill(bgColor)
+
+        while True:
+            HighScore.drawScoreHeader(self, hsWindow, hsFont)
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYUP and event.key == K_ESCAPE:
+                    MainMenu.menu(MainMenu)
+            hsFile = open("scoreRecord.txt","r")
+            textContent = hsFile.readlines()
+            textLength = len(textContent)
+            for a in range(textLength):
+                textContent[a] = str.rstrip(textContent[a])
+            textContent = HighScore.scoreSorting(self, textContent, textLength)
+            hsFile.close()
+            for i in range(int((textLength) / 3)):
+                numberString = str(i + 1)
+                hsSurf = hsFont.render(numberString, True, white)  #number
+                hsRect = hsSurf.get_rect()
+                hsRect.topleft = (10, 40 + (40 * i))
+                hsWindow.blit(hsSurf, hsRect)
+
+                dateString = textContent[i + (i * 2)]
+                hsSurf = hsFont.render(dateString, True, white) #date
+                hsRect = hsSurf.get_rect()
+                hsRect.topleft = (60, 40 + (40 * i))
+                hsWindow.blit(hsSurf, hsRect)
+
+                scoreString = textContent[i + 1 + (i * 2)]
+                hsSurf = hsFont.render(scoreString, True, white) #score
+                hsRect = hsSurf.get_rect()
+                hsRect.topleft = (358, 40 + (40 * i))
+                hsWindow.blit(hsSurf, hsRect)
+
+            pygame.display.update()
+
+
+    def drawScoreHeader(self, hScoreWindow, hScoreFont):
+        hScoreSurf = hScoreFont.render('No', True, white)
+        hScoreRect = hScoreSurf.get_rect()
+        hScoreRect.topleft = (10, 10)
+        hScoreWindow.blit(hScoreSurf, hScoreRect)
+
+        hScoreSurf = hScoreFont.render('Date', True, white)
+        hScoreRect = hScoreSurf.get_rect()
+        hScoreRect.topleft = (60, 10)
+        hScoreWindow.blit(hScoreSurf, hScoreRect)
+
+        hScoreSurf = hScoreFont.render('Score', True, white)
+        hScoreRect = hScoreSurf.get_rect()
+        hScoreRect.topleft = (358, 10)
+        hScoreWindow.blit(hScoreSurf, hScoreRect)
+
+    def scoreSorting(self, unsortedScoreData, unsortedScoreDataLength):
+        sortedScoreData = unsortedScoreData
+        unsortedScoreDataLengthItteration = int(unsortedScoreDataLength / 3)
+        for i in range(unsortedScoreDataLengthItteration):
+            for j in range(0, unsortedScoreDataLengthItteration - i - 1):
+                if sortedScoreData[j + 1 + (j * 2)] <= sortedScoreData[(j + 1) + 1 + ((j + 1) * 2)]:
+                    sortedScoreData[j + (j * 2)], sortedScoreData[(j + 1) + ((j + 1) * 2)] = sortedScoreData[(j + 1) + ((j + 1) * 2)], sortedScoreData[j + (j * 2)]
+                    sortedScoreData[j + 1 + (j * 2)], sortedScoreData[(j + 1) + 1 + ((j + 1) * 2)] = sortedScoreData[(j + 1) + 1 + ((j + 1) * 2)], sortedScoreData[j + 1 + (j * 2)]
+        fileData = open("scoreRecord.txt", "w")
+        for k in range(unsortedScoreDataLengthItteration):
+            if k < 10:
+                fileData.write("%s\n" % sortedScoreData[k + (k * 2)])
+                fileData.write("%s\n" % sortedScoreData[k + 1 + (k * 2)])
+                fileData.write("%s\n" % sortedScoreData[k + 2 + (k * 2)])
+            else:
+                break
+        fileData.close()
+        return sortedScoreData
+
+class Game():
+    def main(self):
+        global fpsClock, backgroundWindow, basicFont, score, solution
+        initialSelectedBox=None
+        pygame.init()
+        fpsClock = pygame.time.Clock()
+        basicFont = pygame.font.Font('freesansbold.ttf', 18)
+        backgroundWindow = pygame.display.set_mode((windowWidth, windowHeight))
+        pygame.display.set_caption('Memory Game')
+        mouseX = 0
+        mouseY = 0
+        solution = -1
+        score = 0
+
+        mainBoard = GameBoard.generateRandomizedBoard(GameBoard)
+        revealState = GameBox.generateRevealState(GameBox, False)
+
+        backgroundWindow.fill(bgColor)
+        GameBox.initialBoxReveal(GameBox, mainBoard)
+
+        while True:
+            mouseClicked = False
+            backgroundWindow.fill(bgColor)
+            GameBoard.drawBoard(GameBoard, mainBoard, revealState)
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYUP and event.key == K_ESCAPE:
+                    MainMenu.menu(MainMenu)
+                elif solution == 0:
+                    pygame.time.wait(100)
+                    scoreData = open("scoreRecord.txt","r")
+                    scoreDataContent = scoreData.readlines()
+                    scoreDataLen = int(len(scoreDataContent) / 3)
+                    scoreData.close()
+                    ScoreIO.scoreNewAppend(ScoreIO, score)
+                    MainMenu.menu(MainMenu)
+                elif event.type == MOUSEMOTION:
+                    mouseX, mouseY = event.pos
+                elif event.type == MOUSEBUTTONUP:
+                    mouseX, mouseY = event.pos
+                    mouseClicked = True
+            boxX, boxY = GameBox.getBoxAtPixel(GameBox, mouseX, mouseY)
+
+            if boxX != None and boxY != None:
+                if not revealState[boxX][boxY]:
+                    GameBox.highlightBox(GameBox, boxX, boxY)
+                if not revealState[boxX][boxY] and mouseClicked:
+                    GameBox.revealBoxAnimation(GameBox, mainBoard, boxX, boxY)
+                    revealState[boxX][boxY]
+                    if initialSelectedBox is None:
+                        initialSelectedBox = GameBox.getShape(GameBox, mainBoard, boxX, boxY)
+                        revealState[boxX][boxY]=True
+                        for initX in range(boardWidth):
+                            for initY in range(boardHeight):
+                                if mainBoard[initX][initY] in initialSelectedBox:
+                                    solution += 1
+                    else:
+                        selectedBox = GameBox.getShape(GameBox, mainBoard, boxX, boxY)
+                        revealState[boxX][boxY] = True
+                        if selectedBox != initialSelectedBox:
+                            if score > 0:
+                                score -= 1
+                        elif selectedBox == initialSelectedBox:
+                            score += 2
+                            solution -= 1
+            pygame.display.update()
+            fpsClock.tick(FPS)
+
+
+class ScoreIO():
+    def scoreNewAppend(self, score):
+        scoreData = open("scoreRecord.txt", "r")
+        scoreDataContent = scoreData.readlines()
+        scoreDataContentLen = int(len(scoreDataContent) / 3)
+        scoreData.close()
+        scoreDate = str(datetime.date.today())
+        for a in range(scoreDataContentLen):
+            scoreDataContent[a] = str.rstrip(scoreDataContent[a])
+        scoreData = open("scoreRecord.txt", "a")
+        scoreData.write("%s\n" % scoreDate)
+        scoreData.write("%s\n" % score)
+        scoreData.write("/\n")
+        scoreData.close()
+
+
+class GameBox():
+    def drawIcon(self, shape, boxX, boxY):
+        quarter = int(boxSize * 0.25)
+        half = int(boxSize * 0.5)
+        leftCoord, topCoord = GameBox.leftTopCoord(self, boxX, boxY)
+        if shape == square:
+            pygame.draw.rect(backgroundWindow, orange,
+                             (leftCoord + quarter, topCoord + quarter, boxSize - half, boxSize - half))
+        elif shape == diamond:
+            pygame.draw.polygon(backgroundWindow, blue,
+                                ((leftCoord + half, topCoord), (leftCoord + boxSize - 1, topCoord + half),
+                                 (leftCoord + half, topCoord + boxSize - 1), (leftCoord, topCoord + half)))
+        elif shape == oval:
+            pygame.draw.ellipse(backgroundWindow, green, (leftCoord, topCoord + quarter, boxSize, half))
+
+    def leftTopCoord(self, boxX, boxY):
+        leftCoord = boxX * (boxSize + gapSize) + xMargin
+        topCoord = boxY * (boxSize + gapSize) + yMargin
+        return (leftCoord, topCoord)
+
+    def generateRevealState(self, value):
+        revealedBox = []
+        for i in range(boardWidth):
+            revealedBox.append([value] * boardHeight)
+        return revealedBox
+
+    def getBoxAtPixel(self, xCoord, yCoord):
+        for boxX in range(boardWidth):
+            for boxY in range(boardHeight):
+                leftCoord, topCoord = GameBox.leftTopCoord(self, boxX, boxY)
+                boxSelect = pygame.Rect(leftCoord, topCoord, boxSize, boxSize)
+                if boxSelect.collidepoint(xCoord, yCoord):
+                    return (boxX, boxY)
+        return (None, None)
+
+    def getShape(self, board, boxX, boxY):
+        return board[boxX][boxY]
+
+    def highlightBox(self, boxX, boxY):
+        leftCoord, topCoord = GameBox.leftTopCoord(self, boxX, boxY)
+        pygame.draw.rect(backgroundWindow, highlightColor, (leftCoord - 5, topCoord - 5, boxSize + 10, boxSize + 10),4)
+
+    def drawBoxCovers(self, board, boxesXCoord, boxesYCoord, coverage):
+        leftCoord, topCoord = GameBox.leftTopCoord(self, boxesXCoord, boxesYCoord)
+        pygame.draw.rect(backgroundWindow, bgColor, (leftCoord, topCoord, boxSize, boxSize))
+        shape = GameBox.getShape(self, board, boxesXCoord, boxesYCoord)
+        GameBox.drawIcon(self, shape, boxesXCoord, boxesYCoord)
+        if coverage > 0:
+            pygame.draw.rect(backgroundWindow, boxColor, (leftCoord, topCoord, coverage, boxSize))
+        pygame.display.update()
+        fpsClock.tick(FPS)
+
+    def revealBoxAnimation(self, board, boxRevealedXCoord, boxRevealedYCoord):
+        for coverage in range(boxSize, (-revealSpeed) - 1, -revealSpeed):
+            GameBox.drawBoxCovers(self, board, boxRevealedXCoord, boxRevealedYCoord, coverage)
+
+    def coverBoxAnimation(self, board, boxCoveredXCoord, boxCoveredYCoord):
+        for coverage in range(0, boxSize + revealSpeed, revealSpeed):
+            GameBox.drawBoxCovers(self, board, boxCoveredXCoord, boxCoveredYCoord, coverage)
+
+    def initialBoxReveal(self,board):
+        initialRevealDelay = int(1000/difficulty)
+        for boxX in range(boardWidth):
+            for boxY in range(boardHeight):
+                shape = GameBox.getShape(self, board, boxX, boxY)
+                GameBox.drawIcon(self, shape, boxX, boxY)
+        pygame.display.update()
+        pygame.time.wait(initialRevealDelay)
+
+class GameBoard():
+    def drawBoard(self, board, revalState):
+        global score
+        for boxX in range(boardWidth):
+            for boxY in range(boardHeight):
+                leftCoord, topCoord = GameBox.leftTopCoord(GameBox, boxX, boxY)
+                if not revalState[boxX][boxY]:
+                    pygame.draw.rect(backgroundWindow, white, (leftCoord, topCoord, boxSize, boxSize))
+                else:
+                    shape = GameBox.getShape(GameBox, board, boxX, boxY)
+                    GameBox.drawIcon(GameBox, shape, boxX, boxY)
+        Information.scoreCounter(Information, score)
+        Information.solutionCount(Information)
+
+    def generateRandomizedBoard(self):
+        icon = []
+        for shape in allShape:
+            icon.append(shape)
+        random.shuffle(icon)
+        numIconUsed = int(boardWidth * boardHeight / len(allShape))
+        icon = icon * numIconUsed
+        random.shuffle(icon)
+        board = []
+        for x in range(boardWidth):
+            column = []
+            for y in range(boardHeight):
+                column.append(icon[0])
+                del icon[0]
+            board.append(column)
+        return board
+
+
+class Information():
+    def scoreCounter(self, scores):
+        scoreSurf = basicFont.render('Score: %s' %(scores), True, white)
+        scoreRect = scoreSurf.get_rect()
+        scoreRect.topleft = (windowWidth - 120, 10)
+        backgroundWindow.blit(scoreSurf, scoreRect)
+
+    def solutionCount(self):
+        if solution >= 0:
+            solutionSurf = basicFont.render('Shape Left: %s' % (solution), True, white)
+        else:
+            solutionSurf = basicFont.render('Select A Box', True, white)
+        solutionRect = solutionSurf.get_rect()
+        solutionRect.topleft = (40, 10)
+        backgroundWindow.blit(solutionSurf, solutionRect)
+
+if __name__ == "__main__":
+    MainMenu.menu(MainMenu)
